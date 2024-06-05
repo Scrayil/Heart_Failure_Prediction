@@ -47,7 +47,7 @@ visualize_outliers <- function(df, exclude_vars = NULL) {
     geom_boxplot(width = 0.7, alpha = 0.5) +
     theme_bw() +
     theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
-    labs(title = paste0("Boxplots", if(!is.null(exclude_vars)) paste0(" without ", exclude_vars) else ""), x = "Variables", y = "Values")
+    labs(title = paste0("Boxplots", if(!is.null(exclude_vars)) paste0(" without ", paste(exclude_vars, collapse = " and ")) else ""), x = "Variables", y = "Values")
 }
 
 # Function used to extract the variable importance for random forest models
