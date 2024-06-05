@@ -27,6 +27,7 @@ library(doRNG)
 library(randomForest)
 library(glmnet)
 library(xgboost)
+library(SHAPforxgboost)
 library(ggplot2)
 library(pROC)
 library(arm)        # For bayesglm
@@ -310,3 +311,23 @@ combined_importance_agg <- aggregate(Importance ~ Variable, data = combined_impo
 
 # Plotting combined importance
 print(plot_variable_importance(combined_importance_agg, "Combined"))
+
+# Using an explainer object to evaluate the impact of each variable for XGBoost models
+xgboost_model <- super_learner$fitLibrary$SL.xgboost_All$object
+# Convert the training data to matrix format
+X_train_matrix <- data.matrix(X_train)
+# Calculate SHAP values
+shap_values <- shap.values(xgb_model = xgboost_model, X_train_matrix)
+# Extract the SHAP contribution matrix
+shap_contrib <- shap_values$shap_score
+# Check if BIAS column exists and remove it
+if ("BIAS" %in% colnames(shap_contrib)) {
+  shap_contrib <- shap_contrib[, colnames(shap_contrib) != "BIAS"]
+}
+# Prepare SHAP values for plotting
+shap_long <- shap.prep(xgb_model = xgboost_model, shap_contrib = shap_contrib, X_train = X_train_matrix)
+# Plot summary of SHAP values
+print(
+  shap.plot.summary(shap_long) +
+  ggtitle("SHAP Summary Plot for XGBoost Model")
+)
