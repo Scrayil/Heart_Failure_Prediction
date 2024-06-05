@@ -135,7 +135,7 @@ if (!exists("hfcr")) {
 str(hfcr)
 
 # Inspecting eventual missing values
-print(gg_miss_var(hfcr) + theme_bw())
+print(gg_miss_var(hfcr) + theme_bw() + ggtitle("Missing values"))
 
 # Looking for eventual outliers
 print(visualize_outliers(hfcr))
