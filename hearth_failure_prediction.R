@@ -35,6 +35,8 @@ library(polspline)  # For polymars
 library(e1071)      # For SVM
 library(nnet)       # For neural networks
 library(ranger)     # For ranger
+library(knitr)  
+library(kableExtra)
 
 
 #########################
@@ -261,6 +263,9 @@ base_model_accuracies <- apply(base_model_predictions, 2, function(preds) {
   return(accuracy)
 })
 
+# Printing the accuracy of the SuperLearner
+sprintf("SuperLearner accuracy: %s", super_learner_accuracy)
+
 # Creating a dataframe to store accuracies
 accuracy_df <- data.frame(
   Model = c(learners, "Super Learner"),
@@ -269,6 +274,17 @@ accuracy_df <- data.frame(
 
 # Removing NA values
 accuracy_df <- accuracy_df[complete.cases(accuracy_df), ]
+
+# Rounding the values to 4 decimals
+table_accuracy_df <- accuracy_df
+table_accuracy_df$Accuracy <- round(table_accuracy_df$Accuracy, 4)
+
+# Creating a table to show the accuracies sorted in decreasing order
+accuracy_table <- knitr::kable(table_accuracy_df[order(table_accuracy_df$Accuracy, decreasing = TRUE),], caption = "Model Accuracies", row.names = FALSE) %>%
+  kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", "bordered"))
+
+# Displaying the table (Since this is not in RMarkdown, this must be executed manually)
+print(accuracy_table)
 
 # Plotting the accuracies
 print(ggplot(accuracy_df, aes(x = reorder(Model, Accuracy), y = Accuracy)) +
