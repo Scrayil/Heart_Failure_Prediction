@@ -82,7 +82,7 @@ normalize_importance <- function(importance) {
   importance / sum(importance)
 }
 
-# Function to extract the variable importance for each model
+# Function used to extract the variable importance for each model
 extract_importance <- function(model_name, model) {
   importance_df <- switch(model_name,
                           "SL.randomForest" = extract_importance_randomForest(model),
@@ -110,7 +110,7 @@ plot_variable_importance <- function(variable_importance, model_name) {
     scale_y_continuous(expand = expansion(mult = c(0, 0.05)))
 }
 
-# Function to calculate accuracy for individual models
+# Function used to calculate accuracy for individual models
 calculate_accuracy <- function(predictions, Y_test) {
   if (length(unique(Y_test)) != 2) {
     stop("Target variable Y_test is not binary.")
@@ -120,6 +120,12 @@ calculate_accuracy <- function(predictions, Y_test) {
   Y_test_factor <- factor(Y_test, levels = c(0, 1))
   accuracy <- sum(pred_factor == Y_test_factor) / length(predictions)
   return(accuracy)
+}
+
+# Function used to calculate RMSE for individual models
+calculate_rmse <- function(predictions, Y_test) {
+  rmse <- sqrt(mean((predictions - Y_test) ^ 2))
+  return(rmse)
 }
 
 
@@ -247,6 +253,7 @@ plot.roc(roc_curve, main = paste("ROC Curve (AUC =", round(auc_value, 2), ")")) 
 
 # Evaluating the overall accuracy of the Super Learner
 super_learner_accuracy <- calculate_accuracy(predictions, Y_test)
+super_learner_rmse <- calculate_rmse(predictions, Y_test)
 
 # Extracting predictions for each base model directly from the SuperLearner object
 base_model_predictions <- super_learner$library.predict
@@ -264,30 +271,43 @@ base_model_accuracies <- apply(base_model_predictions, 2, function(preds) {
 })
 
 # Printing the accuracy of the SuperLearner
-sprintf("SuperLearner accuracy: %s", super_learner_accuracy)
+print(paste0("SuperLearner accuracy: %s", super_learner_accuracy))
 
-# Creating a dataframe to store accuracies
-accuracy_df <- data.frame(
+# Calculating rmse values for each base model
+base_model_rmse <- apply(base_model_predictions, 2, function(preds) {
+  rmse <- calculate_rmse(preds, Y_test)
+  print(paste("Model rmse:", rmse))
+  return(rmse)
+})
+
+# Printing the rmse of the SuperLearner
+print(paste0("SuperLearner rmse: %s", super_learner_rmse))
+
+# Creating a dataframe to store accuracies and rmse values
+accuracy_rmse_df <- data.frame(
   Model = c(learners, "Super Learner"),
-  Accuracy = c(base_model_accuracies, super_learner_accuracy)
+  Accuracy = c(base_model_accuracies, super_learner_accuracy),
+  RMSE = c(base_model_rmse, super_learner_rmse)
 )
 
-# Removing NA values
-accuracy_df <- accuracy_df[complete.cases(accuracy_df), ]
+# Removing NA values if any
+accuracy_rmse_df <- accuracy_rmse_df[complete.cases(accuracy_rmse_df), ]
 
 # Rounding the values to 4 decimals
-table_accuracy_df <- accuracy_df
-table_accuracy_df$Accuracy <- round(table_accuracy_df$Accuracy, 4)
+table_accuracy_and_rmse_df <- accuracy_rmse_df
+table_accuracy_and_rmse_df$Accuracy <- round(table_accuracy_and_rmse_df$Accuracy, 4)
+table_accuracy_and_rmse_df$RMSE <- round(table_accuracy_and_rmse_df$RMSE, 4)
 
-# Creating a table to show the accuracies sorted in decreasing order
-accuracy_table <- knitr::kable(table_accuracy_df[order(table_accuracy_df$Accuracy, decreasing = TRUE),], caption = "Model Accuracies", row.names = FALSE) %>%
+# Creating a table to show the accuracies sorted in decreasing order along with rmse values
+accuracy_rmse_table <- knitr::kable(table_accuracy_and_rmse_df[order(table_accuracy_and_rmse_df$Accuracy, decreasing = TRUE),], caption = "Model Results", row.names = FALSE) %>%
   kableExtra::kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive", "bordered"))
 
-# Displaying the table (Since this is not in RMarkdown, this must be executed manually)
-print(accuracy_table)
+
+# Displaying the tables (Since this is not in RMarkdown, these instruction must be executed manually)
+print(accuracy_rmse_table)
 
 # Plotting the accuracies
-print(ggplot(accuracy_df, aes(x = reorder(Model, Accuracy), y = Accuracy)) +
+print(ggplot(accuracy_rmse_df, aes(x = reorder(Model, Accuracy), y = Accuracy)) +
         geom_bar(stat = "identity", fill = "#730044", width = 0.4) +
         coord_flip() +
         labs(title = "Model Accuracies", x = "Models", y = "Accuracy") +
