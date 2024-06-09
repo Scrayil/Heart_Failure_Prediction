@@ -129,8 +129,6 @@ calculate_accuracy <- function(predictions, Y_test) {
 calculate_rmse <- function(predictions, Y_test) {
   # Converts the predictions' matrix from shape [1:1500, 1] into [1:1500] (vector)
   predictions <- as.vector(predictions)
-  print(length(predictions))
-  print(length(Y_test))
   rmse <- sqrt(mean((predictions - Y_test) ^ 2))
   return(rmse)
 }
