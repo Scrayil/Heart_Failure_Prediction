@@ -37,6 +37,7 @@ library(nnet)       # For neural networks
 library(ranger)     # For ranger
 library(knitr)  
 library(kableExtra)
+library(NeuralNetTools)
 
 
 #########################
@@ -116,6 +117,8 @@ calculate_accuracy <- function(predictions, Y_test) {
     stop("Target variable Y_test is not binary.")
   }
   
+  # Converts the predictions' matrix from shape [1:1500, 1] into [1:1500] (vector)
+  predictions <- as.vector(predictions)
   pred_factor <- factor(ifelse(predictions > 0.5, 1, 0), levels = c(0, 1))
   Y_test_factor <- factor(Y_test, levels = c(0, 1))
   accuracy <- sum(pred_factor == Y_test_factor) / length(predictions)
@@ -124,6 +127,10 @@ calculate_accuracy <- function(predictions, Y_test) {
 
 # Function used to calculate RMSE for individual models
 calculate_rmse <- function(predictions, Y_test) {
+  # Converts the predictions' matrix from shape [1:1500, 1] into [1:1500] (vector)
+  predictions <- as.vector(predictions)
+  print(length(predictions))
+  print(length(Y_test))
   rmse <- sqrt(mean((predictions - Y_test) ^ 2))
   return(rmse)
 }
@@ -204,9 +211,11 @@ if (!file.exists(LEARNER_PATH)) {
     library(ranger)
   })
   
-  # Executing the cross-validation phases in parallel thanks to parLapply
+  # Executing the cross-validation phases in parallel thanks to cv_control
   clusterExport(cluster, c("Y_train", "X_train", "learners", "cv_control"))
-  super_learner <- SuperLearner(Y = Y_train, X = X_train, family = binomial(), SL.library = learners, method = "method.NNLS", cvControl = cv_control, verbose = TRUE)
+  super_learner <- SuperLearner(Y = Y_train, X = X_train, family = binomial(),
+                                SL.library = learners, method = "method.NNLS",
+                                cvControl = cv_control, verbose = TRUE)
   
   # Saving the SuperLearner object at the given path
   saveRDS(super_learner, file=LEARNER_PATH)
@@ -237,11 +246,20 @@ lapply(super_learner$fitLibrary, function(model) {
 })
 
 # Making predictions on the test set
-predictions <- predict(super_learner, newdata = X_test)$pred
+predictions <- predict(super_learner, newdata = X_test)
+# Extracting predictions for each base model directly from the SuperLearner object
+base_model_predictions <- predictions$library.predict
+# Extracting the SuperLearner predictions
+predictions <- as.vector(predictions$pred)
 
 # Checking predictions for the Super Learner
 if (any(predictions < 0 | predictions > 1)) {
   stop("Super Learner predictions contain values outside the range [0, 1]")
+}
+
+# Checking base model predictions range
+if (any(base_model_predictions < 0 | base_model_predictions > 1)) {
+  stop("Base model predictions contain values outside the range [0, 1]")
 }
 
 # Computing the ROC and AUC indexes
@@ -255,14 +273,6 @@ plot.roc(roc_curve, main = paste("ROC Curve (AUC =", round(auc_value, 2), ")")) 
 super_learner_accuracy <- calculate_accuracy(predictions, Y_test)
 super_learner_rmse <- calculate_rmse(predictions, Y_test)
 
-# Extracting predictions for each base model directly from the SuperLearner object
-base_model_predictions <- super_learner$library.predict
-
-# Checking base model predictions range
-if (any(base_model_predictions < 0 | base_model_predictions > 1)) {
-  stop("Base model predictions contain values outside the range [0, 1]")
-}
-
 # Calculating accuracy for each base model
 base_model_accuracies <- apply(base_model_predictions, 2, function(preds) {
   accuracy <- calculate_accuracy(preds, Y_test)
@@ -271,7 +281,7 @@ base_model_accuracies <- apply(base_model_predictions, 2, function(preds) {
 })
 
 # Printing the accuracy of the SuperLearner
-print(paste0("SuperLearner accuracy: %s", super_learner_accuracy))
+print(paste0("SuperLearner accuracy: ", super_learner_accuracy))
 
 # Calculating rmse values for each base model
 base_model_rmse <- apply(base_model_predictions, 2, function(preds) {
@@ -281,7 +291,7 @@ base_model_rmse <- apply(base_model_predictions, 2, function(preds) {
 })
 
 # Printing the rmse of the SuperLearner
-print(paste0("SuperLearner rmse: %s", super_learner_rmse))
+print(paste0("SuperLearner rmse: ", super_learner_rmse))
 
 # Creating a dataframe to store accuracies and rmse values
 accuracy_rmse_df <- data.frame(
@@ -367,3 +377,14 @@ print(
   shap.plot.summary(shap_long) +
   ggtitle("SHAP Summary Plot for XGBoost Model")
 )
+
+# Visualization of the neural network created by nnet
+nn_model <- super_learner$fitLibrary$SL.nnet_All$object
+nn_model$call$x <- quote(as.matrix(X_train))
+nn_model$call$y <- quote(Y_train)
+par(mar = c(0, 0, 5, 0)) # Reducing the horizontal margins to 0
+plotnet(nn_model, pad_x = 0.7, y_names = c("death event"))
+title(main = "Neural Network Model")
+legend("topright", legend = c("Positive Weight", "Negative Weight"), 
+       col = c("black", "gray"), lty = 1, lwd = 10, cex = 0.8,
+       box.lty = 0, inset = c(0.01, 0))
